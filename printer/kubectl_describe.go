@@ -44,7 +44,7 @@ func (dp *DescribePrinter) Print(r io.Reader, w io.Writer) {
 			key := string(line.Key)
 			if withoutColon, ok := strings.CutSuffix(key, ":"); ok {
 				fmt.Fprint(w, color.Apply(withoutColon, keyColor), ":")
-			} else {
+			} else if !dp.colorFprintLabelOrAnnotation(w, scanner.Path(), key) {
 				fmt.Fprint(w, color.Apply(key, keyColor))
 			}
 		}
@@ -52,8 +52,9 @@ func (dp *DescribePrinter) Print(r io.Reader, w io.Writer) {
 		if len(line.Value) > 0 {
 			val := string(line.Value)
 			valColor := dp.valueColor(scanner.Path(), val)
-			fmt.Fprint(w, color.Apply(val, valColor))
-
+			if !dp.colorFprintLabelOrAnnotation(w, scanner.Path(), val) {
+				fmt.Fprint(w, color.Apply(val, valColor))
+			}
 		}
 		fmt.Fprintf(w, "%s\n", line.Trailing)
 	}
@@ -62,6 +63,22 @@ func (dp *DescribePrinter) Print(r io.Reader, w io.Writer) {
 		dp.TablePrinter.Print(dp.tableBytes, w)
 		dp.tableBytes = nil
 	}
+}
+
+var labelOrAnnotationSeps = []string{": ", "="}
+
+func (dp *DescribePrinter) colorFprintLabelOrAnnotation(w io.Writer, path describe.Path, val string) bool {
+	if describeUseStatusColoring(path) {
+		for _, sep := range labelOrAnnotationSeps {
+			if k, v, ok := strings.Cut(val, sep); ok {
+				vColor := dp.valueColor(path, v)
+				kColor := dp.valueColor(path, k)
+				fmt.Fprint(w, color.Apply(k, kColor), sep, color.Apply(v, vColor))
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (dp *DescribePrinter) valueColor(path describe.Path, value string) color.Color {
@@ -78,6 +95,8 @@ var describePathsToColor = []*regexp.Regexp{
 	regexp.MustCompile(`^Status$`),
 	regexp.MustCompile(`^(Init )?Containers/[^/]*/State(/Reason)?$`),
 	regexp.MustCompile(`^Containers/[^/]*/Last State(/Reason)?$`),
+	regexp.MustCompile(`^(Labels|Annotations)/*`),
+	regexp.MustCompile(`^(Init )?Containers/[^/]+/Environment Variables from/.+`),
 }
 
 func describeUseStatusColoring(path describe.Path) bool {
