@@ -51,8 +51,8 @@ func (dp *DescribePrinter) Print(r io.Reader, w io.Writer) {
 		fmt.Fprintf(w, "%s", line.Spacing)
 		if len(line.Value) > 0 {
 			val := string(line.Value)
-			valColor := dp.valueColor(scanner.Path(), val)
 			if !dp.colorFprintLabelOrAnnotation(w, scanner.Path(), val) {
+				valColor := dp.valueColor(scanner.Path(), val)
 				fmt.Fprint(w, color.Apply(val, valColor))
 			}
 		}
@@ -71,8 +71,13 @@ func (dp *DescribePrinter) colorFprintLabelOrAnnotation(w io.Writer, path descri
 	if describeUseStatusColoring(path) {
 		for _, sep := range labelOrAnnotationSeps {
 			if k, v, ok := strings.Cut(val, sep); ok {
+				var kColor color.Color
+				if dp.DarkBackground {
+					kColor = color.White
+				} else {
+					kColor = color.Black
+				}
 				vColor := dp.valueColor(path, v)
-				kColor := dp.valueColor(path, k)
 				fmt.Fprint(w, color.Apply(k, kColor), sep, color.Apply(v, vColor))
 				return true
 			}
